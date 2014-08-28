@@ -225,7 +225,7 @@ function tpl_filters($filter, $showtv)
 	// create sorting selectbox
 	// Sorting is disabled when ordering by diskid is enabled
 	if(!$config['orderallbydisk']) {
-		$smarty->assign('order_options', array(-1 => $lang['title'], 1 => $lang['rating'], 2 => $lang['date']));
+		$smarty->assign('order_options', array(-1 => $lang['title'], 1 => $lang['rating'],3 => $lang['press_rating'], 2 => $lang['date']));
 		if(!$order) $order = session_get('order');
 		$smarty->assign('order',  $order);
 	} 

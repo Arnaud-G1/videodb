@@ -51,6 +51,9 @@ function prepareOrder($m) {
                case 2:
                        $ORDER = "created DESC, lastupdate DESC";
                        break;
+               case 3:
+                       $ORDER = "press_rating desc";
+                       break;               
                default:
                        $ORDER = "title, subtitle asc";
                        break;

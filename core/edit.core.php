@@ -15,11 +15,11 @@ require_once './core/security.php';
 $imdb_set_fields    = array('md5','title','subtitle','language','diskid','mediatype','comment','disklabel',
                             'imdbID','year','imgurl','director','actors','runtime','country','plot','filename',
                             'filesize','filedate','audio_codec','video_codec','video_width','video_height','istv',
-                            'rating', 'custom1','custom2','custom3','custom4');
+                            'rating','press_rating','custom1','custom2','custom3','custom4');
 
 // list of fields to be overwritten by refetchAllInfos-Script
 $imdb_overwrite_fields = array('comment','disklabel','imdbID','year','director','actors','runtime','country','plot',
-                               'rating','custom1','custom2','custom3','custom4');
+                               'rating','press_rating','custom1','custom2','custom3','custom4');
 
 // special fields for SQL statements
 $db_null_fields = array('runtime', 'filesize', 'filedate', 'video_width', 'video_height');
@@ -148,7 +148,8 @@ function prepareSQL($data, $setonly = false)
 
     // rating up to 10
     $rating = min($rating, 10);
-        
+    $press_rating = min($press_rating, 10);  
+    
     // update all fields according to list
     foreach ($imdb_set_fields as $name)
     {
