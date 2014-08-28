@@ -49,6 +49,7 @@ CREATE TABLE videodata (
   country VARCHAR(255) DEFAULT NULL,
   plot TEXT,
   rating VARCHAR(15) DEFAULT NULL,
+  press_rating VARCHAR(15) DEFAULT NULL,
   filename VARCHAR(255) DEFAULT NULL,
   filesize BIGINT UNSIGNED DEFAULT NULL,
   filedate DATETIME DEFAULT NULL,
@@ -230,4 +231,4 @@ INSERT IGNORE INTO users (id, name, passwd, permissions) VALUES (10000 ,'Guest',
 # core/constants.php when changing the database structure!
 #
 
-REPLACE INTO config (opt,value) VALUES ('dbversion', 41);
+REPLACE INTO config (opt,value) VALUES ('dbversion', 42);

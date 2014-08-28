@@ -60,6 +60,8 @@ $lang['asactor']             = "comme";
 $lang['displayed']           = "montrés";
 $lang['add_another']         = "Ajoute encore";
 $lang['action']              = 'Action';
+$lang['rating']              = 'Cote utilisateurs';
+$lang['press_rating']        = 'Cote presse';
 
 #
 # Multiuser

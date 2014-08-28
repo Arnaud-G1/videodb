@@ -15,7 +15,8 @@ Event.observe(document, 'dom:loaded', function() {
     // Rating
     bindRating({$video.id}, {if $video.editable}'show.php'{else}false{/if}, 'rating_control', 'rating_value',
                {if $video.rating}{$video.rating}{else}0{/if}, {if $video.editable}true{else}false{/if});
-
+    bindRating({$video.id}, {if $video.editable}'show.php'{else}false{/if}, 'rating_control2', 'rating_value2',
+               {if $video.press_rating}{$video.press_rating}{else}0{/if}, {if $video.editable}true{else}false{/if});
 {if $engines.trailer}
     // Youtube
     bindYoutube("{$video.title|escape:javascript|escape:html}");
@@ -193,7 +194,12 @@ Event.observe(document, 'dom:loaded', function() {
                     <div id="rating_control" class="rating_container"></div>&nbsp;(<span id="rating_value">{if $video.rating}{$video.rating}{else}0{/if}</span>)
                 </td>
             </tr>
-
+            <tr>
+                <td><h3>{$lang.press_rating}:</h3></td>
+                <td>
+                    <div id="rating_control2" class="rating_container"></div>&nbsp;(<span id="rating_value2">{if $video.press_rating}{$video.press_rating}{else}0{/if}</span>)
+                </td>
+            </tr>
         {if $video.custom1name && $video.custom1out}
             <tr>
                 <td><h3>{$video.custom1name}:</h3></td>

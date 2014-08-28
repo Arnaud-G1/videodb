@@ -20,7 +20,10 @@ Event.observe(document, 'dom:loaded', function() {
      * Rating
      */
     bindRating('rating_control', 'rating_value', {if $video.rating}{$video.rating}{else}0{/if});
-
+     /**
+     * Rating
+     */
+    bindRating('rating_control2', 'rating_value2', {if $video.press_rating}{$video.press_rating}{else}0{/if});
     /**
      * Image lookup
      */
@@ -148,7 +151,13 @@ Event.observe(document, 'dom:loaded', function() {
             <input type="hidden" name="rating" id="rating" value="{$video.rating}" />
           </td>
         </tr>
-
+        <tr>
+          <td><h4>{$lang.press_rating}:</h4></td>
+          <td>
+            <div id="rating_control2" class="rating_container"></div>&nbsp;(<span id="rating_value2">{if $video.press_rating}{$video.press_rating}{else}0{/if}</span>)
+            <input type="hidden" name="press_rating" id="press_rating" value="{$video.press_rating}" />
+          </td>
+        </tr>
         <tr>
           <td colspan="2"><h4>{$lang.genre}:</h4>
             <br/>

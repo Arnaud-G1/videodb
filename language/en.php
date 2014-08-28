@@ -56,6 +56,7 @@ $lang['asactor']             = "as";
 $lang['displayed']           = "displayed";
 $lang['add_another']         = "Add another";
 $lang['rating']              = 'Rating';
+$lang['press_rating']        = 'Press Rating';
 $lang['extid']               = 'External Id';
 $lang['bytes']               = 'Bytes';
 

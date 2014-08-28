@@ -9,21 +9,26 @@
  * @author  Andreas Gohr    <a.gohr@web.de>
  * @author  tedemo          <tedemo@free.fr>
  * @link    http://www.allocine.fr  Internet Movie Database
- * @version $Id: allocine.php,v 1.17 2011/06/24 23:08:06 robelix Exp $
+ * @version $Id: allocine.php,v 1.16 2010/01/06 13:59:28 jdrien Exp $
  */
 
-$GLOBALS['allocineServer']	    = 'http://www.allocine.fr';
+ // Load the file.
+ require_once "engines/api-allocine-helper-php/api-allocine-helper-2.3.php";
+  
 $GLOBALS['allocineIdPrefix']    = 'allocine:';
+$GLOBALS['allocineServer']	    = 'http://www.allocine.fr';
+
+$eastern_countries = '(japon|coree|chine|iran)';
 
 /**
  * Get meta information about the engine
  *
  * @todo    Include image search capabilities etc in meta information
  */
-
+ 
 function allocineMeta()
 {
-    return array('name' => 'Allocine (fr)');
+    return array('name' => 'Allocine (fr)','stable' => 1);
 }
 
 /**
@@ -32,8 +37,12 @@ function allocineMeta()
  * @param string	The search string
  * @return string	The search string with no accents
  */
-function removeAccents($title)
+function removeAccents($title, $charset = 'UTF-8')
 {
+    // Allocine uses ISO-8859-1 encoding while php uses UTF-8
+    if (($default_charset = 'UTF-8') && ($charset != 'UTF-8'))
+        $title = iconv($charset, "UTF-8//TRANSLIT", $title);
+
 	$accentued = array("à","á","â","ã","ä","ç","è","é","ê","ë","ì",
 	"í","î","","ï","ñ","ò","ó","ô","õ","ö","ù","ú","û","ü","ý","ÿ",
 	"À","Á","Â","Ã","Ä","Ç","È","É","Ê","Ë","Ì","Í","Î","Ï","Ñ","Ò",
@@ -42,9 +51,9 @@ function removeAccents($title)
 	"i","i","n","o","o","o","o","o","u","u","u","u","y","y","A","A","A",
 	"A","A","C","E","E","E","E","I","I","I","I","N","O","O","O","O","O",
 	"U","U","U","U","Y");
-
+	
 	$title = str_replace($accentued, $nonaccentued, $title);
-
+	
 	return $title;
 }
 
@@ -60,7 +69,7 @@ function allocineSearchUrl($title)
 {
 	global $allocineServer;
 	// The removeAccents function is added here
-	return $allocineServer.'/recherche/?q='.urlencode(removeAccents($title));
+	return $allocineServer.'/recherche/1/?q='.urlencode(removeAccents($title));
 }
 
 /**
@@ -95,84 +104,66 @@ function allocineContentUrl($id)
  */
 function allocineSearch($title)
 {
-    global $allocineServer;
-    global $CLIENTERROR;
+    $allohelper = new AlloHelper;
+	
+    $page = 1;
+    
+    $search_str = removeAccents($title);
 
-    // The removeAccents function is added here
-    $resp = httpClient(allocineSearchUrl($title), 1);
-    if (!$resp['success']) $CLIENTERROR .= $resp['error']."\n";
-
+	try
+    {
+		$allo_data =  $allohelper->search(trim($search_str), $page);
+        //echo '<pre>';
+        //dump($allo_data->movie);
+        //echo '</pre>';
+	}
+	// Error
+    catch ( ErrorException $e )
+    {
+        // Print a error message.
+        echo "Error accessing Allocine database" . $e->getCode() . ": " . $e->getMessage();
+    }
+		
     $data = array();
 
-    #echo '<pre>';
-    #dump(htmlspecialchars($resp['data']));
-    #echo '</pre>';
-
     // add encoding
-    $data['encoding'] = get_response_encoding($resp);
+    $data['encoding'] = 'iso-8859-1'; // default - legacy from prev code
 
     // direct match (redirecting to individual title)?
-    // no longer needed??
     $single = array();
-    if (preg_match('#^'.preg_quote($allocineServer,'/').'/film/fichefilm_gen_cfilm=(\d+)\.html#', $resp['url'], $single))
+    if ( $allo_data->results->movie  == 1 )
     {
-        $data[0]['id']   = 'allocine:'.$single[2];
-        $data[0]['title']= $title;
+        $data[0]['id']   = 'allocine:'.$allo_data->movie[0]['code'];
+        $data[0]['title']= $allo_data->movie[0]['originalTitle'];
         return $data;
     }
-
+/*
     // multiple matches
     // We remove all the multiples spaces and line breakers
 	$resp['data'] = preg_replace('/[\s]{2,}/','',$resp['data']);
 	// To have the result zone
-	#$debutr  = strpos($resp['data'], '<table class="totalwidth noborder purehtml">')+strlen('<table class="totalwidth noborder purehtml">');
-	#$finr    = strpos($resp['data'], '</table>', $debutr);
-	#$chaine  = substr($resp['data'], $debutr, $finr-$debutr);
-
-    preg_match('#<h2>\s*?Films\s*?</h2>(.*?)<h2>#si',$resp['data'],$ary);
-
-    $chaine = $ary[1];
-    # contains some pretty random <b></b>
-    $chaine = preg_replace('/<b>/','',$chaine);
-    $chaine = preg_replace('/<\/b>/','',$chaine);
-
-    /*
-    <tr><td style=" vertical-align:top;">
-    <a href='/film/fichefilm_gen_cfilm=57999.html'><img
-    src='http://images.allocine.fr/r_75_106/medias/nmedia/18/36/26/78/18759563.jpg'
-    alt='Clerks II' /></a>
-    </td><td style=" vertical-align:top;" class="totalwidth"><div><div style="margin-top:-5px;">
-    <a href='/film/fichefilm_gen_cfilm=57999.html'>
-    Clerks II</a>
-    <br />
-    <span class="fs11">
-    2006<br />
-    de Kevin Smith<br />
-    avec Brian O'Halloran, Jeff Anderson<br />
-    <div>
-    <div class="spacer vmargin10"></div>
-    </span> <!-- /fs11 -->
-    */
-
-    preg_match_all('#<a href=\'/film/fichefilm_gen_cfilm=(\d+).html\'>\s*?(.*?)</a>\s*?<br />\s*?<span class=\"fs11\">\s*?(\d+)<br />\s*?de (.*?)\s*?/#si', $chaine, $m, PREG_SET_ORDER);
-
-    foreach ($m as $row)
+	$debutr  = strpos($resp['data'], '<table class="totalwidth noborder purehtml">')+strlen('<table class="totalwidth noborder purehtml">');
+	$finr    = strpos($resp['data'], '</table>', $debutr);
+	$chaine  = substr($resp['data'], $debutr, $finr-$debutr);
+	
+    preg_match_all('#<a href=\'/film/fichefilm_gen_cfilm=(\d+).html\'>(.*)<span class=\"fs11\">(.*)<br />(.*)<br />#mU', $chaine, $m, PREG_SET_ORDER);
+*/        
+    if ( $allo_data->results->movie > 1 )
     {
-        $info['id']     = 'allocine:'.$row[1];
-
-        $info['title']  = html_clean_utf8(strip_tags($row[2]));
-        $info['title']  = str_replace("(", " (", $info['title']);
-
-        // add year (helpful in case of multiple matches)
-        if (isset($row[3])) {$info['year'] = html_clean_utf8($row[3]);}
-
-        // add director (helpful in case of multiple matches)
-        if (isset($row[4])) {
-          $info['director'] = html_clean_utf8($row[4]);
-          $info['director'] = preg_replace("/^de\s/", "", $info['director']);
+        foreach ($allo_data->movie as $row) 
+        {
+            $info['id']     = 'allocine:'.$row['code'];
+            $info['title']  = $row['originalTitle'];
+            
+            // add year (helpful in case of multiple matches)
+            $info['year'] = $row['productionYear'];
+            // add director (helpful in case of multiple matches)
+            $info['director'] = $row['castingShort']['directors'];
+            if (strcasecmp($row['title'],$row['originalTitle'])) $info['subtitle'] = $row['title'];
+            else $info['subtitle'] = "";
+            
+            $data[]          = $info;
         }
-
-        $data[]          = $info;
     }
 
     return $data;
@@ -186,223 +177,130 @@ function allocineSearch($title)
  * @param   int   imdb-ID
  * @return  array Result data
  */
-function allocineData($imdbID)
+function allocineData($imdbID) 
 {
-    global $allocineServer;
     global $allocineIdPrefix;
     global $CLIENTERROR;
+    global $eastern_countries;
+    
+    $allohelper = new AlloHelper;
 
     $allocineID = preg_replace('/^'.$allocineIdPrefix.'/', '', $imdbID);
 
     // fetch mainpage
-    $resp = httpClient($allocineServer.'/film/fichefilm_gen_cfilm='.$allocineID.'.html', 1);		// added trailing / to avoid redirect
-    if (!$resp['success']) $CLIENTERROR .= $resp['error']."\n";
+	    // Il est important d'utiliser le bloc try-catch pour gérer les erreurs.
+    try
+    {
+    $details = $allohelper->movie($allocineID);
+	}
+	// Error
+    catch ( ErrorException $e )
+    {
+        // Print a error message.
+        echo "Error accessing Allocine database" . $e->getCode() . ": " . $e->getMessage();
+		return array();
+    }
 
     $data   = array(); // result
     $ary    = array(); // temp
-
+    
+    //echo '<pre>';
+    //dump($details);
+    //echo '</pre>';
+    
     // add encoding
-    $data['encoding'] = get_response_encoding($resp);
+    $data['encoding'] = 'iso-8859-1'; // default - legacy from prev code
 
     // Allocine ID
     $data['id'] = "allocine:".$allocineID;
+    
+    $data['title']    = $details['originalTitle'];
+    
+    // Put subtitle only if different
+    if (strcasecmp(removeAccents($details['title'],'iso-8859-1'),removeAccents($details['originalTitle'],'iso-8859-1'))) 
+        $data['subtitle'] = $details['title'];
+    else 
+        $data['subtitle'] = "";
+    
+    $data['language'] = ""; //$details['language'][0]['$'];
+    
+    // Remove accent in first letter
+    $data['title'] = removeAccents(substr($data['title'], 0, 1),'iso-8859-1').substr($data['title'], 1);
+    
+    $data['year'] = $details['productionYear'];
 
-    // We remove all the multiples spaces and line breakers
-    $resp['data'] = preg_replace('/[\s]{2,}/','',$resp['data']);
+    $release_date = "\r\nDate de sortie cinéma : ".$details['release']['releaseDate'] ;
 
-    /*
-      Title and subtitle
-    */
-    preg_match('#<h1.*?>(.*?)</h1>#si', $resp['data'], $ary);
-    list($t, $s)	  = explode(" - ",trim($ary[1]),2);
-    // Some bugs when using html_clean function --> using html_clean_utf8
-    $data['title']    = html_clean_utf8($t);
-    $data['subtitle'] = html_clean_utf8($s);
+    $data['coverurl'] = $details['poster']['href'];
+    $data['runtime']  = round($details['runtime'] / 60);
 
-
-    /*
-      Year
-    */
-    preg_match('/<a.*? href="\/film\/tous\/decennie.*?year=(\d+)">(\d+)<\/a>/i', $resp['data'], $ary);
-    if (!empty($ary[1])) {$data['year'] = trim($ary[1]);}
-
-
-    /*
-      Release Date
-        added to the comments
-    */
-    preg_match('#<a.*? href="/film/agenda\.html\?week=\d+\-\d+\-\d+">(.*)</a>#i',$resp['data'], $ary);
-    $release_date = "";
-    if (!empty($ary[1])) {$release_date = "\r\nDate de sortie cinéma : ".html_clean_utf8($ary[1]);}
-
-    /*
-      Cover URL
-    */
-    preg_match('#<div class="colleft">\s*?<div class="vmargin20b">\s*?<div class=\"poster\">\s*?<em class=\"imagecontainer\">\s*?<a .*?>\s*?<img.*?src=\'(.*?)\'.*?>#si', $resp['data'], $ary);
-    $data['coverurl'] = trim($ary[1]);
-
-
-    /*
-      Runtime
-    */
-    #Durée : 02h13min
-
-    preg_match('/Durée :\s*?(\d+)h(\d+)\s*?min/i', $resp['data'], $ary);
-    $hours  = preg_replace('/,/', '', trim($ary[1]));
-    $minutes  = preg_replace('/,/', '', trim($ary[2]));
-    $data['runtime']  = $hours * 60 + $minutes;
-
-
-    /*
-      Director
-    */
-    preg_match('#Réalisé par\s*<span.*?><a.*?rel="v:directedBy".*?href=\'/personne/fichepersonne_gen_cpersonne=\d+\.html\' title=\'.*\'>(.*)</a></span>#i', $resp['data'], $ary);
-    $data['director'] = trim($ary[1]);
-
-
-    /*
-      Rating
-    */
-    preg_match('#<p class="withstars"><a.*?href="/film/critiquepublic_gen_cfilm=\d+\.html"><img.*?class="stareval.*?".*?<span class=\"moreinfo\">\((.*)\)</span></p>#i', $resp['data'], $ary);
-    $data['rating'] = trim($ary[1]);
-    $data['rating'] = str_replace(",", ".", $data['rating']);
+    $data['director'] = $details['castingShort']['directors'];
+   
     // Allocine rating is based on 5, imdb is based on 10
-    $data['rating'] = $data['rating'] * 2;
-
-
-    /*
-      Countries
-    */
-	 // Countries in English
-    $map_countries = array(
-  		'allemand'			=> 'Germany',
-  		'américain'			=> 'USA',
-  		'arménien'      	=>  'Armenia',
-  		'argentin'      	=>  'Argentina',
-  		'sud-africain'  	=>  'South Africa',
-      	'australien'		=> 'Australia',
-  		'belge'				=> 'Belgium',
-  		'britannique'		=> 'UK',
-  		'bulgare'			=> 'Bulgaria',
-  		'canadien'			=> 'Canada',
-  		'chinois'			=> 'China',
-  		'coréen'			=> 'South Korea',
-  		'danois'			=> 'Denmark',
-  		'espagnol'			=> 'Spain',
-  		'français'			=> 'France',
-  		'grec'				=> 'Greece',
-  		'hollandais'		=> 'Netherlands',
-  		'hong-kongais'		=> 'Hong-Kong',
-  		'hongrois'			=> 'Hungary',
-  		'indien'			=> 'India',
-  		'irlandais'			=> 'Republic of Ireland',
-  		'islandais'			=> 'Iceland',
-  		'israëlien'			=> 'Israel',
-  		'italien'			=> 'Italy',
-  		'japonais'			=> 'Japan',
-  		'luxembourgeois'	=> 'Luxembourg',
-  		'mexicain'			=> 'Mexico',
-  		'norvégien'			=> 'Norge',
-  		'néo-zélandais'		=> 'New Zealand',
-  		'polonais'			=> 'Poland',
-  		'portugais'			=> 'Portugal',
-  		'roumain'			=> 'Romania',
-  		'russe'				=> 'Russia',
-  		'serbe'				=> 'Serbia',
-  		'suédois'			=> 'Sweden',
-  		'taïwanais'			=> 'Taiwan',
-  		'tchèque'			=> 'Czech Republic',
-  		'thaïlandais'		=> 'Thailand',
-  		'turc'				=> 'Turkey',
-  		'ukrainien'			=> 'Ukraine',
-  		'vietnamien'		=> 'Vietnam');
-
-    if (preg_match_all('#Long\-métrage\s*?<a.*?href=".*?">(.*?)</a>#si', $resp['data'], $ary, PREG_PATTERN_ORDER) > 0)
-    {
-		$originlist  = explode(",",trim(join(', ', $ary[1])));
-		foreach ($originlist as $origin)
-		{
-			$mapped_country_found = '';
-
-			foreach ($map_countries as $pattern_c => $mapped_country)
-			{
-				if (preg_match_all('/'.$pattern_c.'/i', $origin, $junk, PREG_PATTERN_ORDER) > 0)
-				{
-					$mapped_country_found = $mapped_country;
-					break;
-				}
-			}
-
-			if($data['country'] == '') {$data['country'] = $mapped_country_found;}
-			elseif(stristr($data['country'], $mapped_country_found) == TRUE)
-			{
-				$data['country'] = $data['country'];
-			}
-			else
-			{
-				$data['country'] = $data['country'] . ', ' . $mapped_country_found;
-			}
-		}
-	}
-
-    /*
-      Plot
-    */
-    preg_match('#<div id="synopsis_full">\s*?<p>\s*?<span class=\"bold\">Synopsis \: </span>\s*?<span property="v:summary">(.*?)</span>#is', $resp['data'], $ary);
-    if (!empty($ary[1])) {
-		$data['plot'] = $ary[1];
-		$data['plot']= html_clean_utf8($data['plot']);
-
-		// And cleanup
-		$data['plot'] = trim($data['plot']);
-		$data['plot'] = preg_replace('/[\n\r]/',' ', $data['plot']);
-		$data['plot'] = preg_replace('/  /',' ', $data['plot']);
+    $data['rating'] = round($details['statistics']['userRating']  * 2,2);
+    $data['press_rating'] = round($details['statistics']['pressRating']  * 2,2);
+    
+    $country_list = array();
+    foreach ($details['nationality'] as $country) {
+        $country_list[] =  $country['$'];  
     }
+    $data['country'] = trim(join(', ', $country_list));  
+    
+    // Use title as main title for eastern countries
+    if (preg_match("/$eastern_countries/i",$data['country']))
+    {
+        //$data['title'] = $details['title'];
+        //$data['subtitle']    = $details['originalTitle'].'xx';
+    }
+    
+	$data['plot'] = $details['synopsis'];
 
     /*
      Genres (as Array)
     */
+
     $map_genres = array(
           'Action'            	=> 'Action',
-          'Animation'         	=>  'Animation',
-          'Arts Martiaux'     	=>  'Action',
+          'Animation'         	=> 'Animation',
+          'Arts Martiaux'     	=> 'Action',
           'Aventure'            => 'Adventure',
           'Biopic'              => 'Biography',
-          'Bollywood'           =>  'Musical',
+          'Bollywood'           => 'Musical',
           'Classique'           => '-',
           'Comédie Dramatique'  => 'Drama',
-          'Comédie musicale'    =>  'Musical',
+          'Comédie musicale'    => 'Musical',
           'Comédie'             => 'Comedy',
-          'Dessin animé'        => 'Animation',
+          'Dessin animé'        => 'Animation', 
           'Divers'              => '-',
           'Documentaire'        => 'Documentary',
           'Drame'               => 'Drama',
           'Epouvante-horreur'   => 'Horror',
-          'Erotique'            =>  'Adult',
-          'Espionnage'          => '-',
+          'Erotique'            => 'Adult',
+          'Espionnage'          => '-',  
           'Famille'             => 'Family',
           'Fantastique'         => 'Fantasy',
           'Guerre'              => 'War',
           'Historique'          => 'History',
-          'Horreur'             =>  'Horror',
+          'Horreur'             => 'Horror',
           'Musique'             => 'Musical',
           'Policier'            => 'Crime',
           'Péplum'              => 'History',
           'Romance'             => 'Romance',
           'Science fiction'     => 'Sci-Fi',
           'Thriller'            => 'Thriller',
-          'Western'             =>  'Western');
-
-    if (preg_match_all('#Genre :(.*?)</a>\s*?<br#si', $resp['data'], $ary, PREG_PATTERN_ORDER) > 0)
+          'Western'             => 'Western');
+        
+    //if (preg_match_all('#Genre :(.*)</a><br/>#U', $resp['data'], $ary, PREG_PATTERN_ORDER) > 0)
     {
-      $genrelist = explode(",", trim(join(', ', $ary[1])));
-
+      //$genrelist = explode(",", trim(join(', ', $ary[1])));
+      $genrelist = $details['genre'];
+        
       foreach ($genrelist as $genre)
       {
-        $mapped_genre_found = '';
+        $mapped_genre_found = '';        
         foreach ($map_genres as $pattern => $mapped_genre)
         {
-          if (preg_match_all('/'.$pattern.'/i', $genre, $junk, PREG_PATTERN_ORDER) > 0)
+          if (preg_match_all('/'.$pattern.'/i', $genre['$'], $junk, PREG_PATTERN_ORDER) > 0)
           {
             $mapped_genre_found = $mapped_genre;
             break;
@@ -412,155 +310,35 @@ function allocineData($imdbID)
       }
     }
 
-    /*
-      Original Title
-    */
-    preg_match('#Titre original : <span class=\"purehtml\"><em>(.*)</em></span>#', $resp['data'], $ary);
-    $data['origtitle'] = trim($ary[1]);
-
-    /*
-      Title and Subtitle
-      If sub-title is blank, we'll try to fill in the original title for foreign films.
-    */
-    if (empty($data['subtitle']))
-    {
-        if ($data['origtitle'])
-        {
-            $data['subtitle'] = $data['title'];
-            $data['title']  = $data['origtitle'];
-        }
-    }
 
     /*
       CREDITS AND CAST
     */
-    // fetch credits
-    // Another HTML page
-    $resp = httpClient($allocineServer.'/film/casting_gen_cfilm='.$allocineID.'.html', 1);
-    if (!$resp['success']) {$CLIENTERROR .= $resp['error']."\n";}
-
-    // We remove all the multiples spaces and line breakers
-    $resp['data'] = preg_replace('/[\s]{2,}/','',$resp['data']);
-
-    if (preg_match('#<h2>Acteurs, rôles, personnages</h2>(.*?)<div class="titlebar">\s*?<a class="anchor" id=\'actors\'></a>\s*?<h2>#is', $resp['data'], $Section))
-    {
-
-        # the big ones with image
-        /*
-        <div class="titlebar">
-        <h3>
-        <a href="/personne/fichepersonne_gen_cpersonne=5568.html">Liam Neeson</a>
-        </h3>
-        </div>
-        <p>
-        Rôle : Qui-Gon Jinn
-        </p>
-        <div class="spacer"></div>
-        */
-        preg_match_all('#<div class="titlebar">\s*?<h3>\s*?<a href="/personne/fichepersonne_gen_cpersonne=(\d+?).html">(.*?)</a>\s*?</h3>\s*?</div>\s*?<p>\s*Rôle : (.*?)\s*</p>#is', $Section[1], $ary, PREG_PATTERN_ORDER);
-
-        $count = 0;
-        while (isset($ary[1][$count]))
+    $cast = "";
+	foreach ($details['castMember'] as $castmember)
+	{
+        //echo '<pre>';
+        //print_r($castmember['role']);
+        //echo '</pre>';
+        $role = "";
+        if ($castmember['activity']['code'] == '8001')
         {
-            $cast .= $ary[2][$count]."::".$ary[3][$count]."::allocine:".$ary[1][$count]."\n";
-            $count++;
+            if (isset($castmember['role'])) {
+               $role = $castmember['role']; // NOT WORKING!!!
+            }
+            $cast .= $castmember['person']['name']."::".$role."::allocine:".$castmember['person']['code']."\n";
         }
-
-        # extended cast - without image
-        /*
-        <tr class="odd">
-        <td>
-        Shmi Skywalker
-        </td>
-        <td>
-        <a href="/personne/fichepersonne_gen_cpersonne=14279.html">Pernilla August</a>
-        </td>
-        </tr>
-        */
-        preg_match_all('#<tr.*?>\s*?<td>\s*(.*?)\s*</td>\s*?<td>\s*?<a href="/personne/fichepersonne_gen_cpersonne=(\d+).html">(.*?)</a>\s*?</td>#si', $Section[1], $ary, PREG_PATTERN_ORDER);
-
-        $count = 0;
-        while (isset($ary[1][$count]))
-        {
-            $cast .= $ary[3][$count]."::".$ary[1][$count]."::allocine:".$ary[2][$count]."\n";
-            $count++;
-        }
-        $data['cast'] = trim($cast);
-
-    }
-
-
-
+        //print 'Role: '.$role.'<br>';
+        //$cast .= $castmember."::".$ary[3][$count]."::allocine:".$ary[1][$count]."\n";
+	}
+	$data['cast'] = trim($cast);
+       
     /*
       Comments
     */
     // By default
-    $data['language'] = 'french';
+    //$data['language'] = 'french';
 
-    // Another HTML page
-    $resp = httpClient($allocineServer.'/film/fichefilm-'.$allocineID.'/technique/', 1);
-    if (!$resp['success']) {$CLIENTERROR .= $resp['error']."\n";}
-
-    // We remove all the multiples spaces and line breakers
-	$resp['data'] = preg_replace('/[\s]{2,}/','',$resp['data']);
-
-	 // Technical informations as comment
-    preg_match('#<div class=\"rubric\">\s*?<div class=\"vpadding20b\">\s*(.*?)\s*</div>\s*?</div>#si', $resp['data'], $ary);
-    if (!empty($ary[1]))
-    {
-        $data['comment'] = $ary[1];
-
-        $data['comment'] = str_replace("Tourné en :", "Tourné en : ", $data['comment']);
-
-        // Adding the release date in theater
-        $data['comment'] = $data['comment'] . $release_date;
-
-        // Search the language
-        // Default language
-        $data['language'] = "french";
-
-        if (preg_match('#<p>\s*?<span class=\"bold\">Tourné en :</span>\s*(.*?)\s*</p>#si', $resp['data'], $ary))
-        {
-            $data['language'] = $ary[1];
-
-            // Converting languages from french to english
-            $map_languages = array(
-            'Anglais'             =>  'english',
-            'Français'            =>  'french',
-            'Allemand'            =>  'german',
-            'Italien'             =>  'italian',
-            'Espagnol'            =>  'spanish',
-            'Coréen'              =>  'Korean',
-            'Roumain'             =>  'romanian',
-            'Autre'               =>  'french',
-            'Hindi'               =>  'hindi',
-            'Arabe'               =>  'arabic',
-            'Thaï'                =>  'thai',
-            'Danois'              =>  'danish',
-            'Suédois'             =>  'swedish',
-            'Tchèque'             =>  'czech',
-            'Japonais'            =>  'japanese',
-            'Portugais'           =>  'portuguese',
-            'Norvégien'           =>  'norwegian',
-            'Bulgare'             =>  'bulgarian',
-            'Grec'                =>  'greek',
-            'Hongrois'            =>  'hungarian',
-            'Turc'                =>  'turkish',
-            'Islandais'			=>  'icelandic',
-            'Polonais'			=>  'polish',
-            'Russe'				=>  'russian',
-            'Ukrainien'			=>  'ukrainian',
-            'Serbe'				=>  'serbian',
-            'Vietnamien'		    =>  'vietnamese',
-            'Afrikaans' 		    =>  'afrikaans'
-            );
-
-            foreach($map_languages as $pattern => $map_lang)
-            {
-                $data['language'] = str_replace($pattern, $map_lang, $data['language']);
-            }
-        }
-    }
 
 	// Return the data collected
 	return $data;
@@ -581,22 +359,57 @@ function allocineData($imdbID)
 function allocineActor($name, $actorid)
 {
     global $allocineServer;
-
+    global $allocineIdPrefix;
+    global $CLIENTERROR;
+    
     if (empty ($actorid)) {
         return;
     }
 
-    $url = 'http://www.allocine.fr/personne/fichepersonne_gen_cpersonne='.urlencode($actorid).'.html';
-    $resp = httpClient($url, 1);
+    $allohelper = new AlloHelper;
 
-    $single = array();
-    if (preg_match ('/src="([^"]+allocine.fr\/acmedia\/medias\/nmedia\/[^"]+\/[0-9]+\.jpg)[^>]+width="120"/', $resp['data'], $single)) {
-        $ary[0][0]=$url;
-        $ary[0][1]=$single[1];
-        return $ary;
-    } else {
-	    return null;
+
+    // fetch mainpage
+	    // Il est important d'utiliser le bloc try-catch pour gérer les erreurs.
+    try
+    {
+        $details = $allohelper->person($actorid);
+	}
+	// Error
+    catch ( ErrorException $e )
+    {
+        // Print a error message.
+        echo "Error accessing Allocine actor database" . $e->getCode() . ": " . $e->getMessage();
+		return array();
     }
+    
+    $url = 'http://www.allocine.fr/personne/fichepersonne_gen_cpersonne='.urlencode($actorid).'.html';
+
+    $ary[0][0]=$url;
+    $ary[0][1]=$details['picture']['href'];
+    return $ary;
+        
+}
+
+/**
+ * Get Url to visit IMDB for a specific actor
+ *
+ * @author  Michael Kollmann <acidity@online.de>
+ * @param   string  $name   The actor's name
+ * @param   string  $id The actor's external id
+ * @return  string      The visit URL
+ */
+function allocineActorUrl($name, $id)
+{
+    global $allocineServer;
+    
+    if (empty ($id)) {
+        return;
+    }
+
+    $path = 'personne/fichepersonne_gen_cpersonne='.urlencode($id).'.html';
+
+    return $allocineServer.'/'.$path;
 }
 
 ?>
