@@ -1371,7 +1371,7 @@
         
         public function offsetExists($offset)
         {
-            return ($this->_getProperty($this->_position, true) !== null);
+            return ($this->_getProperty($offset, true) !== null);
         }
         
         

@@ -13,7 +13,7 @@
  */
 
  // Load the file.
- require_once "engines/api-allocine-helper-php/api-allocine-helper-2.3.php";
+ require_once "lib/api-allocine-helper-php/api-allocine-helper-2.2.php";
   
 $GLOBALS['allocineIdPrefix']    = 'allocine:';
 $GLOBALS['allocineServer']	    = 'http://www.allocine.fr';
@@ -317,19 +317,14 @@ function allocineData($imdbID)
     $cast = "";
 	foreach ($details['castMember'] as $castmember)
 	{
-        //echo '<pre>';
-        //print_r($castmember['role']);
-        //echo '</pre>';
         $role = "";
         if ($castmember['activity']['code'] == '8001')
-        {
-            if (isset($castmember['role'])) {
-               $role = $castmember['role']; // NOT WORKING!!!
-            }
+        {     
+             if ($castmember->offsetExists('role')) {
+               $role = $castmember['role']; 
+             }
             $cast .= $castmember['person']['name']."::".$role."::allocine:".$castmember['person']['code']."\n";
         }
-        //print 'Role: '.$role.'<br>';
-        //$cast .= $castmember."::".$ary[3][$count]."::allocine:".$ary[1][$count]."\n";
 	}
 	$data['cast'] = trim($cast);
        
